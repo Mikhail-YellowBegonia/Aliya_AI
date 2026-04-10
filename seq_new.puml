@@ -51,10 +51,55 @@ group MAIN TOOL
     aliya -> intrcpt : handle action
 end
 
-group SUB LOOP
-' subsession 仅供子 Agent 内部多轮调用时缓存数据
-    intrcpt <-> mcp : call tools
-    intrcpt -> scratch : write subagent_return (Raw data)
+group SUB LOOP [迭代限制: iter < 3]
+    note over aliya : 重置 SUB_ITER_COUNT = 0
+    
+    loop 直到 识别到 [SUB QUIT] 或 iter >= 3
+        note over aliya : SUB_ITER_COUNT ++
+        
+        ' 步骤 1: 组装子循环专属上下文
+        note over asm : Order: -N > subsession > Scratchpad > 0
+        rw.db -> asm : 加载核心指令
+        subsession -> asm : 加载子 Agent 私有上下文
+        scratch -> asm : 加载上一轮工具原始返回
+        meta -> asm : 加载当前 0 号位状态
+        asm -> aliya : 交付 [SUB 组装上下文]
+
+        ' 步骤 2: 获取执行 Key 并进行 API 推理
+        aliya --> main : 申请 int.key (subsession 写入权)
+        main --> keys : 分配 subsession 写入权
+        
+        alt API 调用成功
+            aliya <-> api : 请求 [动作决策/参数生成]
+        else API 失败
+            aliya -> aliya : 执行 "Error as Answer"\n构造虚拟错误反馈
+        end
+
+        ' 步骤 3: 拦截动作并调用 MCP
+        aliya -> intrcpt : 输出包含 [Action: ...]
+        
+        alt 正常调用
+            intrcpt <-> mcp : 访问远程/本地 MCP Server
+            mcp -> intrcpt : 返回 Raw Data / JSON
+        else 工具超时或崩溃
+            intrcpt -> intrcpt : 捕获 Exception
+            intrcpt -> intrcpt : 格式化 Sanitized Error\n(防止上下文爆炸)
+        end
+
+        ' 步骤 4: 写入 Scratchpad 与 subsession
+        intrcpt -> scratch : 写入/更新 [Scratchpad]\n(供下一轮或主脑读取)
+        intrcpt -> subsession : 更新 [subsession]\n(维持子 Agent 逻辑链)
+
+        ' 步骤 5: 退出判定
+        intrcpt -> aliya : 检定输出是否包含 [SUB QUIT]
+        
+        alt 识别到 [SUB QUIT] 或 强制熔断 (iter=3)
+            aliya -> aliya : 退出 SUB LOOP
+            aliya --> main : 释放 int.key (subsession)
+        else 需要下一步 [SUB NEXT]
+            aliya -> aliya : 继续下一轮 SUB 迭代
+        end
+    end
 end
 
 group MAIN HIDDEN
