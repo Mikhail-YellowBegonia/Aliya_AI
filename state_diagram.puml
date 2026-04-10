@@ -1,0 +1,42 @@
+@startuml
+
+title Aliya: Main FSM & Agent FSM 并发制约图
+
+' 加入一个隐藏的起始点，强迫解析器进入状态机模式
+[*] --> Aliya_System
+
+state Aliya_System {
+
+    state "Main FSM (逻辑与锁控制循环)" as MainLoop {
+        [*] --> INIT
+        INIT --> IDLE : 初始化完成 (DB挂载)
+        IDLE --> BUSY_COGNITION : 收到用户消息\n[锁定终端输入]
+        BUSY_COGNITION --> BUSY_MAINTENANCE : 收到 Agent 结束信号
+        BUSY_MAINTENANCE --> IDLE : 切片写入完成\n[解锁终端输入]
+        BUSY_COGNITION --> FAULT : API 严重超时/崩溃
+        FAULT --> IDLE : 紧急重启\n[解锁终端输入]
+    }
+
+
+    --
+
+    state "Agent FSM (认知与行为循环)" as AgentLoop {
+        [*] --> SLEEPING
+        SLEEPING --> MAIN_TOOL : 收到 int.key
+        
+        MAIN_TOOL --> SUB_LOOP : 识别到 [Action: ...]
+        MAIN_TOOL --> MAIN_FORMAL : 纯聊天 [Skip]
+        
+        state SUB_LOOP {
+            [*] --> Call_MCP
+            Call_MCP --> Parse_Feedback
+            Parse_Feedback --> Call_MCP : 需跟进 & iter < 3
+            Parse_Feedback --> [*] : 完成 或 iter >= 3
+        }
+        
+        SUB_LOOP --> MAIN_HIDDEN : 携带工具结果
+        MAIN_HIDDEN --> MAIN_FORMAL : 准备开口
+        MAIN_FORMAL --> SLEEPING : 生成回复\n[触发释放 key]
+    }
+}
+@enduml

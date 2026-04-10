@@ -1,0 +1,47 @@
+@startuml components
+
+component "remote services"{
+"Cloud API" - [LLM Services]
+"server" - [MCP Server]
+[MCP Server] - "execution"
+
+}
+
+component "local services"{
+[Sub Agent] - "python"
+component [Terminal] as cli
+
+}
+
+package "main"{
+
+component "Logic Loop"{
+portout ext.write
+portout int.write
+portin ext.key
+portin int.key
+
+component "FSM Core"
+
+}
+
+component "Agent Loop"{
+component [Context Assembly] as asm
+component [Context Interceptor] as intrcpt
+component [Main Aliya] as aliya
+interface "exclusive DB tools" as exclusive
+component [Context Slicer] as slice
+
+}
+
+database "DB"{
+[config]
+[subsession]
+[history]
+[prompt]
+
+}
+
+}
+
+@enduml

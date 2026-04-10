@@ -1,0 +1,97 @@
+@startuml seq_v2_safe
+
+box "remote"
+participant "LLM API" as api
+participant "MCP Server" as mcp
+end box
+
+box "local"
+boundary "Terminal" as cli
+end box
+
+box "main"
+box "I/O Loop"
+control "Main FSM" as main
+end box
+
+box "Agent Loop"
+participant "Context Assembly" as asm
+control "Aliya FSM" as aliya
+participant "Interceptor" as intrcpt
+' 内存中的临时对象，阅后即焚
+entity "Scratchpad" as scratch
+database "cache"
+end box
+
+box "Database"
+participant "Meta (0)" as meta
+collections "History (+N)" as r.db
+collections "Prompt (-N)" as rw.db
+database "subsession"
+end box
+
+== Scene 1: Lock & Meta Update ==
+
+cli -> main : user message
+main -> main : SET_STATE(BUSY)
+' 在处理任何逻辑前，先刷新瞬时感官
+main -> meta : Update (Time, Weather, System)
+main -> cli : LOCK_INPUT
+
+== Scene 2: The 3-Iteration Cycle ==
+
+group MAIN TOOL
+    note over asm : Order: -N > +N > Cache > 0
+    rw.db -> asm
+    r.db -> asm
+    cache -> asm
+    meta -> asm
+    asm -> aliya : context
+    aliya <-> api : request tool intent
+    aliya -> intrcpt : handle action
+end
+
+group SUB LOOP
+' subsession 仅供子 Agent 内部多轮调用时缓存数据
+    intrcpt <-> mcp : call tools
+    intrcpt -> scratch : write subagent_return (Raw data)
+end
+
+group MAIN HIDDEN
+    note over asm : Order: -N > +N > Cache > 0 > Scratchpad
+    rw.db -> asm
+    r.db -> asm
+    cache -> asm
+    meta -> asm
+    scratch -> asm : get ephemeral result
+    asm -> aliya : context
+    aliya <-> api : request (Hidden thought)
+    aliya -> cache : append hidden reply (Thought only)
+end
+
+group MAIN FORMAL
+    note over asm : Order: -N > +N > Cache > 0 > Scratchpad > Cache*
+    rw.db -> asm
+    r.db -> asm
+' 这里的 cache 包含前面的对话，cache* 指当前轮次的最关键用户输入
+    cache -> asm 
+    meta -> asm
+    scratch -> asm 
+    asm -> aliya : context
+    aliya <-> api : request (Natural Language)
+    aliya -> cache : append formal reply
+    aliya -> cli : UNLOCK_INPUT & SHOW_REPLY
+' 任务结束，清空内存便签
+    main -> scratch : PURGE (阅后即焚)
+end
+
+group SLICE (Post-Process)
+    aliya -> aliya : Analyze Slice
+    alt if slice needed
+        cache -> r.db : commit
+        aliya -> cache : clear
+    end
+    main -> main : SET_STATE(IDLE)
+end
+
+@enduml
