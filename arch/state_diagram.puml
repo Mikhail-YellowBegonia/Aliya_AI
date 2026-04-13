@@ -11,8 +11,12 @@ state Aliya_System {
         [*] --> INIT
         INIT --> IDLE : 初始化完成 (DB挂载)
         IDLE --> BUSY_COGNITION : 收到用户消息\n[锁定终端输入]
+        IDLE --> BUSY_SYSTEM : 收到系统指令 (/cmd)\n[锁定终端输入]
+        BUSY_SYSTEM --> IDLE : 指令执行完成\n[解锁终端输入]
         BUSY_COGNITION --> BUSY_MAINTENANCE : 收到 Agent 结束信号
         BUSY_MAINTENANCE --> IDLE : 切片写入完成\n[解锁终端输入]
+        IDLE --> SHUTDOWN : 收到退出指令 (exit/quit)
+        SHUTDOWN --> [*] : 关闭服务 & 存档退出
         BUSY_COGNITION --> FAULT : API 严重超时/崩溃
         FAULT --> IDLE : 紧急重启\n[解锁终端输入]
     }
