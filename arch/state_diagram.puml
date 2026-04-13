@@ -7,7 +7,7 @@ title Aliya: Main FSM & Agent FSM 并发制约图
 
 state Aliya_System {
 
-    state "Main FSM (逻辑与锁控制循环)" as MainLoop {
+    state "Main FSM (MainState)" as MainLoop {
         [*] --> INIT
         INIT --> IDLE : 初始化完成 (DB挂载)
         IDLE --> BUSY_COGNITION : 收到用户消息\n[锁定终端输入]
@@ -20,7 +20,7 @@ state Aliya_System {
 
     --
 
-    state "Agent FSM (认知与行为循环)" as AgentLoop {
+    state "Agent FSM (AgentState)" as AgentLoop {
         [*] --> SLEEPING
         SLEEPING --> MAIN_TOOL : 收到 int.key
         

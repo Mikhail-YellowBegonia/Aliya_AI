@@ -1,0 +1,11 @@
+# Core
+litellm
+rich
+prompt_toolkit
+mcp
+python-dotenv
+
+# Development
+pytest
+ruff
+mypy
