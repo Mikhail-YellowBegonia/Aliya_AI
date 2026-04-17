@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 *.db
 aliya.db
+prosperous/debug.log
+prosperous/*.ttf
